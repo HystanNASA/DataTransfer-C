@@ -25,7 +25,7 @@ int main(int argc, char const *argv[])
     }
 
     HOSTIP = argv[1];
-    strcpy(FILENAME, argv[2]);
+    strcpy(FILENAME, argv[2]);  
 
     retValue = clientRoutine();
 
@@ -51,7 +51,6 @@ int clientRoutine()
         localerrno = 1;
         goto terminate;
     }
-    printf("after socket\n");
 
     if(connect(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
     {
@@ -59,23 +58,24 @@ int clientRoutine()
         localerrno = 1;
         goto terminate;
     }
-    printf("after connect\n");
 
+    printf("Connected\n");
+
+    char listeningBuffer[10];
     sendall(sockfd, FILENAME, strlen(FILENAME), 0);
-    recv(sockfd, NULL, 10, 0);
+    printf("Sent filename\n");
+    recv(sockfd, listeningBuffer, 10, 0);
 
     file = fopen(FILENAME, "rb");
     if(file == NULL)
         goto terminate;
 
-    printf("after opening file\n");
     char c = 1;
     while(c != EOF)
     {   
         for(int i = 0; ((c = fgetc(file)) != EOF) && (i < 1024); i++)
             buffer[i] = c;
         sendall(sockfd, buffer, strlen(buffer), 0);
-        printf("reading file");
     }
     fclose(file);
 
