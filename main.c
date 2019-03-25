@@ -9,15 +9,17 @@
 #include <errno.h>
 #include <signal.h>
 
-#define PORT 1710
+#define PORT        2600
+#define FILE_SIZE   256
 
-int     sockfd, mainSock, listenerSock;
-int     file;
-char    filename[256];
+int     sockfd, mainSock, listeningSock, writingSock;
+FILE*   file;
+char    filename[FILE_SIZE];
 
 void clientRoutine();
 void serverRoutine();
 void handleSignal();
+int copy(char*, char*, size_t); // returns 1 if '\0' is found, otherwise, returns 0
 
 int main(int argc, char* argv[])
 {
@@ -49,7 +51,7 @@ int main(int argc, char* argv[])
 void clientRoutine()
 {
     struct sockaddr_in  addr;
-    char                data[1024];
+    char                data[1024] = {'\0'};
 
     addr.sin_family      = AF_INET;
     addr.sin_port        = htons(PORT);
@@ -69,16 +71,40 @@ void clientRoutine()
         goto terminate;
     }
 
-    int totalBytesWritten = 0;
-
-    if(file = fopen(filename, "rb") < 0)
+    file = fopen(filename, "rb");
+    if(file == NULL)
     {
         fprintf(stderr, "Opening file failed\n");
         goto terminate;
     }
 
-    /* Communicating with server */
-    write(sockfd, "ok", sizeof("ok"));
+    /* Write filename then data */
+    ssize_t totalBytesWritten = 0;
+    ssize_t bytes = 0;
+    while(totalBytesWritten != strlen(filename) + 1)
+    {
+        bytes = write(sockfd, filename, strlen(filename) + 1);
+        if(bytes == -1)
+            break;
+        totalBytesWritten += bytes;
+    }
+    printf("%ld bytes sent\n", totalBytesWritten);
+
+    totalBytesWritten = 0;
+    bytes = 0;
+    while(fgets(data, sizeof(data), file) != NULL)
+    {
+        while(totalBytesWritten != strlen(data))
+        {
+            bytes = write(sockfd, data, strlen(data));
+            if(bytes == -1)
+                break;
+            totalBytesWritten += bytes;
+        }
+        memset(data, 0, sizeof(data));
+    }
+    printf("%ld bytes sent\n", totalBytesWritten);
+    write(sockfd, '\0', 1);
 
 terminate:
     close(sockfd);
@@ -88,9 +114,8 @@ terminate:
 void serverRoutine()
 {
     struct sockaddr_in  addr;
-    char                filename[256];
-    char                data[1024];
-    const int           trueFlag = 1;
+    char                data[1024]  = {'\0'};
+    const int           trueFlag    = 1;
 
     addr.sin_family      = AF_INET;
     addr.sin_port        = htons(PORT);
@@ -121,25 +146,59 @@ void serverRoutine()
         fprintf(stderr, "Listening failed\n");
         goto terminate;
     }
+    listeningSock = accept(mainSock, NULL, NULL);
+    
+    ssize_t bytes = 0;
+    int i = 0;
+    while(bytes = read(listeningSock, data, sizeof(data)) > 0)
+    {
+        if(bytes == -1)
+            break;
+        if(copy(filename + i, data, FILE_SIZE - i))
+            break;
+    }
+    printf("%ld\n", strlen(filename));
 
-    listenerSock = accept(mainSock, NULL, NULL);
+    file = fopen(filename, "wb");
+    if(file == NULL)
+    {
+        fprintf(stderr, "Creating file failed\n");
+        goto terminate;
+    }
 
-    /* Communicating with client */
-    char buff[16];
-    read(listenerSock, buff, sizeof(buff));
+    ssize_t totalBytesWritten = 0;
+    bytes = 0;
+    while(bytes = read(listeningSock, data, sizeof(data)) > 0)
+    {
+        while(totalBytesWritten != strlen(data))
+        {
+            bytes = fprintf(file, "%s", data);
+            if(bytes == -1)
+                break;
+            totalBytesWritten += bytes;
+        }
+    }
 
-    printf("%s\n", buff);
+    printf("DONE!\n");
 
 terminate:
     close(mainSock);
-    close(listenerSock);
+    close(listeningSock);
     close(file);
+}
+
+int copy(char* dst, char* src, size_t len) // TODO: Optimization
+{
+    int i;
+    for(i = 0; (src[i] != '\0') && (i < len); i++) dst[i] = src[i];
+    if(src[i] == '\0') return 1;
+    return 0;
 }
 
 void handleSignal()
 {
     close(sockfd);
     close(mainSock);
-    close(listenerSock);
+    close(listeningSock);
     close(file);
 }
