@@ -9,41 +9,36 @@
 #include <errno.h>
 #include <signal.h>
 
-#define PORT        2730
 #define FILE_SIZE   256
 
+#define TRUE        1
+#define FALSE       0
+
 int     sockfd, mainSock, listeningSock, writingSock;
-FILE*   file;
-char    filename[FILE_SIZE];
+
+FILE*   file = NULL;
+char    filename[FILE_SIZE] = {'\0'};
+short   server              = -1;
+char    ip[15]              = {'\0'};
+u_short port                = 18000;
 
 void clientRoutine();
 void serverRoutine();
+void argparser(const int, char**);
 void handleSignal();
 int copy(char*, char*, size_t); // returns 1 if '\0' is found, otherwise, returns 0
 
 int main(int argc, char* argv[])
 {
-    if(argc != 3)
-    {
-        fprintf(stderr, "Must be 2 args\n");
-        exit(1);
-    }
-
     signal(SIGABRT, handleSignal);
+    signal(SIGTERM, handleSignal);
 
-    strcpy(filename, argv[2]);
-    if(strcmp(argv[1], "-s") == 0)
-    {
+    argparser(argc, argv);
+
+    if(server)
         serverRoutine();
-    }
-    else if(strcmp(argv[1], "-c") == 0) 
-    {
+    else 
         clientRoutine();
-    }
-    else
-    {
-        fprintf(stderr, "Must be the -s or -c argument\n");
-    }
 
     return 0;
 }
@@ -55,8 +50,8 @@ void clientRoutine()
     ssize_t             totalBytesWritten   = 0;
 
     addr.sin_family                         = AF_INET;
-    addr.sin_port                           = htons(PORT);
-    addr.sin_addr.s_addr                    = inet_addr("192.168.0.12");
+    addr.sin_port                           = htons(port);
+    addr.sin_addr.s_addr                    = inet_addr(ip);
 
     memset(&(addr.sin_zero), 0, sizeof(addr.sin_zero));
 
@@ -119,9 +114,10 @@ void serverRoutine()
     char                data[1024]  = {'\0'};
     const int           trueFlag    = 1;
 
-    addr.sin_family      = AF_INET;
-    addr.sin_port        = htons(PORT);
-    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_family                 = AF_INET;
+    addr.sin_port                   = htons(port);
+    addr.sin_addr.s_addr            = INADDR_ANY;
+
     memset(&(addr.sin_zero), 0, sizeof(addr.sin_zero));
 
     mainSock = socket(AF_INET, SOCK_STREAM, 0);
@@ -148,6 +144,8 @@ void serverRoutine()
         fprintf(stderr, "Listening failed\n");
         goto terminate;
     }
+
+    printf("SERVER: %s\n", ip); // print server's ip
     listeningSock = accept(mainSock, NULL, NULL);
     
     ssize_t bytes = 0;
@@ -187,6 +185,67 @@ terminate:
     close(mainSock);
     close(listeningSock);
     close(file);
+}
+
+void argparser(const int argc, char** argv)
+{
+    for(int i = 0; i < argc; i++)
+    {
+        if(strcmp(argv[i], "-s") == 0)
+            server = TRUE;
+        else if(strcmp(argv[i], "-c") == 0)
+            server = FALSE;
+        else if(strcmp(argv[i], "-ip") == 0)
+        {
+            if(i + 1 < argc)
+                strcpy(ip, argv[i + 1]);
+            else 
+            {
+                perror("-ip undefined\n");
+                exit(1);   
+            }
+
+            i++;
+        }
+        else if(strcmp(argv[i], "-p") == 0)
+        {
+            if(i + 1 < argc)
+                port = (u_short)atoi(argv[i + 1]);
+            else 
+            {
+                perror("-p undefined\n");
+                exit(1);   
+            }
+            i++;
+        }
+        else if(strcmp(argv[i], "-f") == 0)
+        {
+            if(i + 1 < argc)
+                strcpy(filename, argv[i + 1]);
+            else 
+            {
+                perror("-f undefined\n");
+                exit(1);   
+            }
+            i++;
+        }
+    }
+
+    if(server == -1)
+    {
+        perror("Chose between server and client\n");
+        exit(1);
+    }
+    if(ip[0] == '\0' && server == FALSE)
+    {
+        perror("Set ip\n");
+        exit(1);
+    }
+    if(filename[0] == '\0' && server == FALSE)
+    {
+        perror("What file you want to transfer?\n");
+        exit(1);
+    }
 }
 
 int copy(char* dst, char* src, size_t len) // TODO: Optimization
