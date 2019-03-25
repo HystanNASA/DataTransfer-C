@@ -9,7 +9,7 @@
 #include <errno.h>
 #include <signal.h>
 
-#define PORT        2600
+#define PORT        2730
 #define FILE_SIZE   256
 
 int     sockfd, mainSock, listeningSock, writingSock;
@@ -51,11 +51,13 @@ int main(int argc, char* argv[])
 void clientRoutine()
 {
     struct sockaddr_in  addr;
-    char                data[1024] = {'\0'};
+    char                data[1024]          = {'\0'};
+    ssize_t             totalBytesWritten   = 0;
 
-    addr.sin_family      = AF_INET;
-    addr.sin_port        = htons(PORT);
-    addr.sin_addr.s_addr = inet_addr("192.168.0.12");
+    addr.sin_family                         = AF_INET;
+    addr.sin_port                           = htons(PORT);
+    addr.sin_addr.s_addr                    = inet_addr("192.168.0.12");
+
     memset(&(addr.sin_zero), 0, sizeof(addr.sin_zero));
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -79,7 +81,6 @@ void clientRoutine()
     }
 
     /* Write filename then data */
-    ssize_t totalBytesWritten = 0;
     ssize_t bytes = 0;
     while(totalBytesWritten != strlen(filename) + 1)
     {
@@ -88,10 +89,10 @@ void clientRoutine()
             break;
         totalBytesWritten += bytes;
     }
-    printf("%ld bytes sent\n", totalBytesWritten);
 
-    totalBytesWritten = 0;
-    bytes = 0;
+    totalBytesWritten = 0;              // clear the variable to use it again
+    bytes = 0;                          // ditto
+
     while(fgets(data, sizeof(data), file) != NULL)
     {
         while(totalBytesWritten != strlen(data))
@@ -103,8 +104,9 @@ void clientRoutine()
         }
         memset(data, 0, sizeof(data));
     }
-    printf("%ld bytes sent\n", totalBytesWritten);
-    write(sockfd, '\0', 1);
+    write(sockfd, '\0', 1); // make sure the file ends
+
+    printf("DONE!\n");
 
 terminate:
     close(sockfd);
@@ -156,8 +158,8 @@ void serverRoutine()
             break;
         if(copy(filename + i, data, FILE_SIZE - i))
             break;
+        i += bytes;
     }
-    printf("%ld\n", strlen(filename));
 
     file = fopen(filename, "wb");
     if(file == NULL)
