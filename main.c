@@ -24,7 +24,7 @@ u_short port                = 18000;
 
 void clientRoutine();
 void serverRoutine();
-void argparser(const int, char**);
+void argparser(const int, char** const);
 void handleSignal();
 int copy(char*, char*, size_t); // returns 1 if '\0' is found, otherwise, returns 0
 
@@ -187,7 +187,7 @@ terminate:
     close(file);
 }
 
-void argparser(const int argc, char** argv)
+void argparser(const int argc, char** const argv)
 {
     for(int i = 0; i < argc; i++)
     {
