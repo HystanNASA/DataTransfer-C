@@ -26,7 +26,7 @@ void clientRoutine();
 void serverRoutine();
 void argparser(const int, char** const);
 void handleSignal();
-int copy(char*, char*, size_t); // returns 1 if '\0' is found, otherwise, returns 0
+int copy(char*, char* const, const size_t); // returns 1 if '\0' is found, otherwise, returns 0
 
 int main(int argc, char* argv[])
 {
@@ -105,7 +105,7 @@ void clientRoutine()
 
 terminate:
     close(sockfd);
-    close(file);
+    fclose(file);
 }
 
 void serverRoutine()
@@ -184,7 +184,7 @@ void serverRoutine()
 terminate:
     close(mainSock);
     close(listeningSock);
-    close(file);
+    fclose(file);
 }
 
 void argparser(const int argc, char** const argv)
@@ -248,7 +248,7 @@ void argparser(const int argc, char** const argv)
     }
 }
 
-int copy(char* dst, char* src, size_t len) // TODO: Optimization
+int copy(char* dst, char* const src, const size_t len) // TODO: Optimization
 {
     int i;
     for(i = 0; (src[i] != '\0') && (i < len); i++) dst[i] = src[i];
@@ -261,5 +261,5 @@ void handleSignal()
     close(sockfd);
     close(mainSock);
     close(listeningSock);
-    close(file);
+    fclose(file);
 }
